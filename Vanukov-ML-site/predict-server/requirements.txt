@@ -1,0 +1,7 @@
+flask
+flask-cors
+pandas
+scikit-learn==0.24.2
+joblib
+numpy==1.26.4
+prometheus_flask_exporter

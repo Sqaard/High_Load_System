@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'predict-server'
+    static_configs:
+      - targets: ['predict-server:5002']  
+
+  - job_name: 'simulator'
+    static_configs:
+      - targets: ['simulator:8000']  

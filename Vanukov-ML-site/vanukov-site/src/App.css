@@ -1,0 +1,139 @@
+.container {
+
+  font-family: Arial, sans-serif;
+  background-color: #ffffff; /* Light background */
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+h1 {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.error {
+  color: #e53e3e;
+  margin-bottom: 20px;
+  font-size: 16px;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 columns */
+  grid-template-rows: repeat(2, auto); /* 2 rows */
+  gap: 24px;
+  padding: 16px;
+  position: sticky; /* Keep charts in place */
+  top: 0; /* Stick to the top of the container */
+  z-index: 10; /* Ensure charts stay above other content */
+  background-color: #ffffff; /* Light background */
+}
+
+.chart-container {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.no-data-message {
+  height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-style: italic;
+}
+
+.current-values,
+.recommendations,
+.adjustments {
+  background: #ffffff; /* Light background */
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 24px;
+  border: 1px solid #e5e7eb;
+}
+
+.current-values p,
+.recommendations p,
+.adjustment-item p {
+  font-size: 14px;
+  color: #333;
+  margin: 8px 0;
+}
+
+.current-values-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recommendation-text {
+  color: #1e40af;
+}
+
+.adjustment-item {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px; /* Increased gap for wider fields */
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+
+.input-field {
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 300px; /* Wider input fields */
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.btn-apply {
+  background-color: #1e40af;
+  color: white;
+}
+
+.btn-apply:hover {
+  background-color: #1e3a8a;
+}
+
+.font-bold {
+  font-weight: bold;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .charts-grid {
+    grid-template-columns: repeat(2, 1fr); /* 2 columns for medium screens */
+    grid-template-rows: repeat(3, auto); /* 3 rows */
+  }
+}
+
+@media (max-width: 800px) {
+  .charts-grid {
+    grid-template-columns: 1fr; /* 1 column for small screens */
+    grid-template-rows: repeat(6, auto); /* 6 rows */
+  }
+}
