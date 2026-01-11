@@ -261,7 +261,6 @@ cd <repository-name>
 - "High Latency": Avg response time >0.5s for 5m.
 
 ### 12. Fire Alerts (Task 13)
-- No Traffic: Stopped simulator (`docker-compose stop simulator`), waited 5m—alert fired in Grafana UI.
 - High Latency: Increased delays in simulator.py, ran k6—latency >0.5s, alert fired.
 
 ## Report (Task 14)
@@ -277,11 +276,5 @@ cd <repository-name>
 - Fast Rate: `rate(websocket_fast_messages_total[$__rate_interval])`
 
 ### k6 Launch Results
-- Baseline (10 VUs, 30s): ~150k iterations, 100% checks succeeded, ws_msgs_rtt avg~50ms, p95~100ms, data_received ~150kB.
-- With Delays: Latency avg~0.3s, triggered high latency alert.
-- Observations: Service stable, no crashes; metrics spiked visibly in Grafana.
+<img width="965" height="682" alt="image" src="https://github.com/user-attachments/assets/dd714f93-b966-444b-9b46-70dcb80c1534" />
 
-### Additional Insights
-- Production Readiness: Metrics libs are robust; custom code needs error handling for high concurrency.
-- Improvements: Add more thresholds, integrate CI for tests.
-- Challenges: WebSocket testing required custom k6; CSV dependencies for data.
