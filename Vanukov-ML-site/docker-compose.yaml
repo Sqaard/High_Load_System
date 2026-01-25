@@ -1,26 +1,44 @@
 services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8080:80"  # External access to nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro  # Mount custom config
+    depends_on:
+      predict-server:
+        condition: service_healthy
+      simulator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"] #make sure nginx is runnning
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   k6:
     image: grafana/k6:latest
-    command: run /scripts/load_test.js --verbose  
+    command: run /scripts/load_predict_cached.js --verbose
     volumes:
       - ./tests:/scripts
     depends_on:
-      - simulator
-    networks:
-      - default
+      simulator:
+        condition: service_healthy
 
   vanukov-site:
-    build: ./vanukov-site 
+    build: ./vanukov-site
     ports:
-      - "80:80"  
+      - "80:5173"
     volumes:
       - ./vanukov-site:/app
-      - /app/node_modules 
+      - /app/node_modules
     depends_on:
-      - simulator
-      - predict-server
+      simulator:
+        condition: service_healthy
+      predict-server:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -38,21 +56,34 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:  # Vertical scaling
+      resources:
+        limits:
+          cpus: '0.5'  # Limit to 0.5 CPU cores
+          memory: 256M  # Limit to 256MB memory
 
   simulator:
     build: ./simulator
-    ports:
-      - "5001:5001"
-      - "8000:8000"  # For /metrics
+    # Comment for horizontal scaling
+    #ports:
+    #  - "5001:5001"
+    #  - "8000:8000" # For /metrics
     volumes:
       - ./simulator:/app
     expose:
+      - "5001"
       - "8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/metrics"]
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.5'     # Low CPU – forces horizontal scaling to shine
+          memory: 256M    # Low memory – same as predict-server
 
   prometheus:
     image: prom/prometheus:latest
@@ -91,7 +122,7 @@ services:
       - GF_DATABASE_HOST=postgres:5432
       - GF_DATABASE_NAME=grafana
       - GF_DATABASE_USER=grafana
-      - GF_DATABASE_PASSWORD=grafana_password  
+      - GF_DATABASE_PASSWORD=grafana_password
       - GF_DATABASE_SSL_MODE=disable
     depends_on:
       prometheus:
@@ -110,18 +141,37 @@ services:
     environment:
       - POSTGRES_DB=grafana
       - POSTGRES_USER=grafana
-      - POSTGRES_PASSWORD=grafana_password  
+      - POSTGRES_PASSWORD=grafana_password
     volumes:
-      - postgres-data:/var/lib/postgresql 
+      - postgres-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"  
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U grafana"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s  
+      start_period: 10s
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://grafana:grafana_password@postgres:5432/grafana?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
 volumes:
   prometheus-data:
   grafana-data:

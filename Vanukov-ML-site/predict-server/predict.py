@@ -4,18 +4,52 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
+from prometheus_client import Histogram, Counter, REGISTRY
 from prometheus_flask_exporter import PrometheusMetrics
-metrics = PrometheusMetrics(app)
+metrics = PrometheusMetrics(app, registry=REGISTRY)
+
+
+cache_operation_latency = Histogram(
+    'cache_operation_seconds',
+    'Cache operation duration',
+    labelnames=['op'],
+    registry=REGISTRY
+)
+cache_hits = Counter(
+    'cache_hits_total',
+    'Total number of cache hits',
+    ['endpoint'],
+    registry=REGISTRY  
+)
+
+cache_misses = Counter(
+    'cache_misses_total',
+    'Total number of cache misses',
+    ['endpoint'],
+    registry=REGISTRY
+)
+
 
 from joblib import load
 import pandas as pd
 import numpy as np
+import redis
+import time
+
+
 
 app.config['data_buffer'] = []
 app.config['last_prediction'] = 62.5
 # Test mode flag
 TEST_MODE = False
 
+# ── Redis client ───────────────────────────────────────────────
+redis_client = redis.Redis(
+    host='redis',          # docker service name
+    port=6379,
+    db=0,
+    decode_responses=True  # get strings, not bytes
+)
 # Load model and validate
 try:
     model = load('LIN_model.joblib')
@@ -29,6 +63,107 @@ except Exception as e:
     expected_features = []
     model_coefficients = {}
 
+
+
+
+# ── Helper: make cache key from input features ─────────────────
+def make_cache_key(data: dict) -> str:
+    # Sort keys + values to make deterministic key
+    sorted_items = sorted(data.items())
+    key_str = ",".join(f"{k}:{v}" for k, v in sorted_items)
+    return f"predict:{key_str}"
+
+# ── Endpoint 1: No cache (always runs model) ───────────────────
+@app.route('/predict-nocache', methods=['POST'])
+def predict_nocache():
+    start = time.perf_counter()
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data"}), 400
+
+    try:
+        df = pd.DataFrame([data])
+        prediction = model.predict(df)[0]
+        latency = time.perf_counter() - start
+        print(f"[NoCache] Inference took {latency:.4f}s")
+        return jsonify({"prediction": float(prediction)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ── Endpoint 2: Cache-aside ────────────────────────────────────
+@app.route('/predict-cached', methods=['POST'])
+def predict_cached():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data"}), 400
+
+    key = make_cache_key(data)
+    print(f"[DEBUG] Cache key: {key}")
+    # Get from cache
+    with cache_operation_latency.labels(op='get').time():
+        cached = redis_client.get(key)
+        
+    if cached is not None:
+        cache_hits.labels(endpoint='predict-cached').inc()  
+        print(f"[Cached] HIT for key {key}")
+        return jsonify({"prediction": float(cached), "from_cache": True})
+
+    # MISS
+    cache_misses.labels(endpoint='predict-cached').inc()   
+    print(f"[Cached] MISS for key {key} → computing")
+
+    lock_key = f"lock:{key}"
+    acquired = redis_client.set(lock_key, "1", nx=True, ex=10)
+
+    if acquired:
+        try:
+            # double check (вдруг кто-то успел записать за нас)
+            cached = redis_client.get(key)
+            if cached is not None:
+                cache_hits.labels(endpoint='predict-cached').inc()
+                print(f"[Cached] HIT after lock for key {key}")
+                return jsonify({"prediction": float(cached), "from_cache": True})
+
+            # expensive work
+            df = pd.DataFrame([data])
+            prediction = model.predict(df)[0]
+
+            # СОХРАНЯЕМ В КЭШ — это главное!
+            with cache_operation_latency.labels(op='set').time():
+                redis_client.set(key, str(prediction), ex=30)
+
+            print(f"[Cached] Saved to cache: {key} = {prediction}")
+
+            return jsonify({"prediction": float(prediction), "from_cache": False})
+
+        finally:
+            redis_client.delete(lock_key)
+    else:
+        # spin-lock
+        for _ in range(20):
+            time.sleep(0.05)
+            cached = redis_client.get(key)
+            if cached is not None:
+                cache_hits.labels(endpoint='predict-cached').inc()
+                return jsonify({"prediction": float(cached), "from_cache": True})
+
+    # fallback (если lock не получен)
+    start = time.perf_counter()
+    try:
+        df = pd.DataFrame([data])
+        prediction = model.predict(df)[0]
+        latency = time.perf_counter() - start
+
+        with cache_operation_latency.labels(op='set').time():
+            
+            set_result = redis_client.set(key, str(prediction), ex=30)
+            print(f"[DEBUG] redis.set result for key {key}: {set_result}")  # ← добавь это!
+        print(f"[Cached] Inference + cache set took {latency:.4f}s")
+        return jsonify({"prediction": float(prediction), "from_cache": False})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+    
 # Define required features
 required_features = expected_features or [
     'Total charge rate, t/h',
