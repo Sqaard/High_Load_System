@@ -23,18 +23,29 @@
     {
       "title": "WebSocket Message Latency (95th) - Simulator",
       "type": "timeseries",
-      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(websocket_message_latency_seconds_bucket[$__rate_interval])) by (le))" }]
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(websocket_message_latency_seconds_bucket[$__rate_interval])) by (le))"
+        }
+      ]
     },
     {
       "title": "Average WebSocket Response Time - Simulator",
       "type": "timeseries",
-      "targets": [{ "expr": "sum(rate(websocket_message_latency_seconds_sum[$__rate_interval])) / sum(rate(websocket_message_latency_seconds_count[$__rate_interval]))" }]
+      "targets": [
+        {
+          "expr": "sum(rate(websocket_message_latency_seconds_sum[$__rate_interval])) / sum(rate(websocket_message_latency_seconds_count[$__rate_interval]))"
+        }
+      ]
     },
     {
       "title": "Active WebSocket Connections",
       "type": "timeseries",
       "targets": [
-        { "expr": "websocket_connections_current", "legendFormat": "Active WS Connections" }
+        {
+          "expr": "websocket_connections_current",
+          "legendFormat": "Active WS Connections"
+        }
       ]
     },
     {
@@ -46,10 +57,13 @@
           "legendFormat": "% Slow Messages (>0.5s)"
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100
+        }
+      }
     },
-
-
     {
       "title": "Redis Commands Executed per Second",
       "type": "timeseries",
@@ -59,15 +73,15 @@
           "legendFormat": "Commands/sec (total)"
         },
         {
-          "expr": "rate(redis_commands_total{ cmd=\"get\" }[$__rate_interval])",
+          "expr": "rate(redis_commands_total{cmd=\"get\"}[$__rate_interval])",
           "legendFormat": "GET/sec (cache lookups)"
         },
         {
-          "expr": "rate(redis_commands_total{ cmd=\"set\" }[$__rate_interval])",
+          "expr": "rate(redis_commands_total{cmd=\"set\"}[$__rate_interval])",
           "legendFormat": "SET/sec (cache writes)"
         }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },  
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
       "description": "Shows Redis operation rate. Spikes in GET/SET indicate cache activity or thundering herd."
     },
     {
@@ -84,7 +98,10 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "bytes", "decimals": 1 }
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1
+        }
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
       "description": "Monitor memory consumption — important when caching many predictions."
@@ -99,61 +116,107 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 80 }, { "color": "green", "value": 95 } ] } }
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        }
       },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
       "description": "Cache effectiveness. High % = good caching. Drops during cold start / invalidation / herd."
     },
     {
-    "title": "Cache Hits & Misses",
-    "type": "timeseries",
-    "targets": [
-      {
-        "expr": "rate(cache_hits_total{endpoint=\"predict-cached\"}[$__rate_interval])",
-        "legendFormat": "Cache Hits/sec"
-      },
-      {
-        "expr": "rate(cache_misses_total{endpoint=\"predict-cached\"}[$__rate_interval])",
-        "legendFormat": "Cache Misses/sec"
-      }
-    ],
-    "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
-    "description": "Rate of cache hits and misses"
-  },
-  {
-    "title": "Cache Hit Ratio (%)",
-    "type": "timeseries",
-    "targets": [
-      {
-        "expr": "sum(rate(cache_hits_total{endpoint=\"predict-cached\"}[$__rate_interval])) / (sum(rate(cache_hits_total{endpoint=\"predict-cached\"}[$__rate_interval])) + sum(rate(cache_misses_total{endpoint=\"predict-cached\"}[$__rate_interval]))) * 100",
-        "legendFormat": "Cache Hit Ratio %"
-      }
-    ],
-    "fieldConfig": {
-      "defaults": { "unit": "percent", "min": 0, "max": 100 }
+      "title": "Cache Hits & Misses",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(cache_hits_total{endpoint=\"predict-cached\"}[$__rate_interval])",
+          "legendFormat": "Cache Hits/sec"
+        },
+        {
+          "expr": "rate(cache_misses_total{endpoint=\"predict-cached\"}[$__rate_interval])",
+          "legendFormat": "Cache Misses/sec"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "description": "Rate of cache hits and misses"
     },
-    "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
-    "description": "Your custom cache hit ratio from Flask app"
-  },
-  {
-    "title": "Cache Operation Latency (p95)",
-    "type": "timeseries",
-    "targets": [
-      {
-        "expr": "histogram_quantile(0.95, sum(rate(cache_operation_seconds_bucket{op=\"get\"}[$__rate_interval])) by (le))",
-        "legendFormat": "GET p95"
+    {
+      "title": "Cache Hit Ratio (%) (custom)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(cache_hits_total{endpoint=\"predict-cached\"}[$__rate_interval])) / (sum(rate(cache_hits_total{endpoint=\"predict-cached\"}[$__rate_interval])) + sum(rate(cache_misses_total{endpoint=\"predict-cached\"}[$__rate_interval]))) * 100",
+          "legendFormat": "Cache Hit Ratio %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
       },
-      {
-        "expr": "histogram_quantile(0.95, sum(rate(cache_operation_seconds_bucket{op=\"set\"}[$__rate_interval])) by (le))",
-        "legendFormat": "SET p95"
-      }
-    ],
-    "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
-    "description": "Latency of cache GET and SET operations"
-  }
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "description": "Custom cache hit ratio from Flask app"
+    },
+    {
+      "title": "Cache Operation Latency (p95)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(cache_operation_seconds_bucket{op=\"get\"}[$__rate_interval])) by (le))",
+          "legendFormat": "GET p95"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(cache_operation_seconds_bucket{op=\"set\"}[$__rate_interval])) by (le))",
+          "legendFormat": "SET p95"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+      "description": "Latency of cache GET and SET operations"
+    },
+    {
+      "title": "Replication Lag (Replica)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "pg_replication_lag_bytes{instance=\"postgres-replica-exporter:9187\"}",
+          "legendFormat": "Lag (bytes)"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "unit": "bytes",
+      "description": "Replication lag between master and replica"
+    },
+    {
+      "title": "CPU Consumption (Master/Replica)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{container=\"postgres-master\"}[5m]) * 100",
+          "legendFormat": "Master CPU %"
+        },
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{container=\"postgres-replica\"}[5m]) * 100",
+          "legendFormat": "Replica CPU %"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "unit": "percent",
+      "description": "CPU usage of Postgres master and replica containers"
+    }
   ],
   "time": { "from": "now-30m", "to": "now" },
   "timezone": "browser",
   "editable": true,
-  "version": 1
+  "version": 2
 }

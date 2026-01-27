@@ -18,12 +18,12 @@ services:
 
   k6:
     image: grafana/k6:latest
-    command: run /scripts/load_predict_cached.js --verbose
+    command: run /scripts/pg_load.js --verbose
     volumes:
       - ./tests:/scripts
     depends_on:
-      simulator:
-        condition: service_healthy
+    - postgres-master
+    - postgres-exporter
 
   vanukov-site:
     build: ./vanukov-site
@@ -136,7 +136,7 @@ services:
       retries: 3
 
   postgres:
-    image: postgres:latest
+    image: postgres:16
     container_name: postgres
     environment:
       - POSTGRES_DB=grafana
@@ -172,7 +172,139 @@ services:
       - "9187:9187"
     depends_on:
       - postgres
+    
+  etcd:
+    image: quay.io/coreos/etcd:v3.3.27
+    container_name: etcd
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    environment:
+      ETCD_NAME: etcd
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd:2380
+      ETCD_INITIAL_CLUSTER: etcd=http://etcd:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster
+    volumes:
+      - etcd-data:/var/lib/etcd
+    restart: unless-stopped
+
+  db-api:
+    build: ./db-api  # see Dockerfile below
+    container_name: db-api
+    ports:
+      - "5003:5003"  # HTTP for k6
+    volumes:
+      - ./db-api:/app
+    environment:
+      MASTER_DSN: postgresql://grafana:grafana_password@postgres-master:5432/grafana?sslmode=disable
+      REPLICA_DSN: postgresql://grafana:grafana_password@postgres-replica:5432/grafana?sslmode=disable
+    depends_on:
+      - postgres-master
+      - postgres-replica
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    restart: unless-stopped
+  postgres-master:
+    image: ghcr.io/zalando/spilo-16:3.3-p1
+    container_name: postgres-master
+    ports:
+      - "5433:5432"
+      - "8008:8008"  # Patroni REST API
+    environment:
+      SCOPE: postgres-cluster
+      NAME: master
+      ETCD_HOSTS: etcd:2379
+      PGUSER: grafana
+      PGPASSWORD: grafana_password
+      SUPERUSER_PASSWORD: admin_password
+      REPLICATION_USER: repl_user
+      REPLICATION_PASSWORD: repl_password
+      PGDATA: /var/lib/postgresql/data
+      PATRONI_LOG_LEVEL: DEBUG   # ← add this
+      PATRONI_CONFIG: /home/postgres/patroni.yml
+    volumes:
+      - postgres-master-data:/var/lib/postgresql/data
+      - ./patroni.yml:/home/postgres/patroni.yml:ro
+
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "grafana"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-replica:
+    image: ghcr.io/zalando/spilo-16:3.3-p1
+    container_name: postgres-replica
+    ports:
+      - "5434:5432"
+      - "8009:8008"
+    environment:
+      SCOPE: postgres-cluster
+      NAME: replica
+      ETCD_HOSTS: etcd:2379
+      PGUSER: grafana
+      PGPASSWORD: grafana_password
+      SUPERUSER_PASSWORD: admin_password
+      REPLICATION_USER: repl_user
+      REPLICATION_PASSWORD: repl_password
+      PGDATA: /var/lib/postgresql/data
+      PATRONI_LOG_LEVEL: DEBUG   # ← add this
+      PATRONI_CONFIG: /home/postgres/patroni.yml
+    volumes:
+      - postgres-replica-data:/var/lib/postgresql/data
+      - ./patroni.yml:/home/postgres/patroni.yml:ro
+
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "grafana"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # Add postgres-exporter for both
+  postgres-exporter-master:
+    image: prometheuscommunity/postgres-exporter
+    container_name: postgres-exporter-master
+    environment:
+      DATA_SOURCE_NAME: "postgresql://grafana:grafana_password@postgres-master:5432/grafana?sslmode=disable"
+    ports:
+      - "9188:9187"
+    depends_on:
+      - postgres-master
+
+  postgres-exporter-replica:
+    image: prometheuscommunity/postgres-exporter
+    container_name: postgres-exporter-replica
+    environment:
+      DATA_SOURCE_NAME: "postgresql://grafana:grafana_password@postgres-replica:5432/grafana?sslmode=disable"
+    ports:
+      - "9189:9187"
+    depends_on:
+      - postgres-replica
+
+  # For huge insert — I'll use psql in k6 
 volumes:
+  etcd-data:
   prometheus-data:
   grafana-data:
   postgres-data:
+  postgres-master-data:
+  postgres-replica-data:

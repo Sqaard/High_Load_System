@@ -4,7 +4,7 @@ global:
 scrape_configs:
   - job_name: 'predict-server'
     static_configs:
-      - targets: ['predict-server:5002']  
+      - targets: ['predict-server:5002']
 
   - job_name: 'simulator'
     static_configs:
@@ -16,3 +16,15 @@ scrape_configs:
   - job_name: 'postgres-exporter'
     static_configs:
       - targets: ['postgres-exporter:9187']
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+  - job_name: 'postgres-master-exporter'
+    static_configs:
+      - targets: ['postgres-exporter-master:9187']
+  - job_name: 'postgres-replica-exporter'
+    static_configs:
+      - targets: ['postgres-exporter-replica:9187']
+  - job_name: 'patroni'
+    static_configs:
+      - targets: ['postgres-master:8008', 'postgres-replica:8008']
